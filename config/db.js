@@ -39,28 +39,47 @@
 // module.exports = pool;
 
 
-const mysql = require('mysql2/promise');
-require('dotenv').config(); // Đọc biến môi trường từ .env
+// const mysql = require('mysql2/promise');
+// require('dotenv').config(); // Đọc biến môi trường từ .env
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3307,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || '2004',
-  database: process.env.DB_NAME || 'hnoss_shop',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+// const pool = mysql.createPool({
+//   host: process.env.DB_HOST || 'localhost',
+//   port: process.env.DB_PORT || 3307,
+//   user: process.env.DB_USER || 'root',
+//   password: process.env.DB_PASS || '2004',
+//   database: process.env.DB_NAME || 'hnoss_shop',
+//   waitForConnections: true,
+//   connectionLimit: 10,
+//   queueLimit: 0,
+// });
+
+// // Kiểm tra kết nối
+// pool.getConnection()
+//   .then((conn) => {
+//     console.log('✅ Kết nối MySQL thành công!');
+//     conn.release(); // Trả lại connection về pool
+//   })
+//   .catch((err) => {
+//     console.error('❌ Kết nối MySQL thất bại:', err.message);
+//   });
+
+// module.exports = pool;
+
+
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  port: process.env.DB_PORT,
+  ssl: { rejectUnauthorized: false }, // cần khi dùng Render PostgreSQL
 });
 
-// Kiểm tra kết nối
-pool.getConnection()
-  .then((conn) => {
-    console.log('✅ Kết nối MySQL thành công!');
-    conn.release(); // Trả lại connection về pool
-  })
-  .catch((err) => {
-    console.error('❌ Kết nối MySQL thất bại:', err.message);
-  });
+pool.connect()
+  .then(() => console.log('✅ PostgreSQL connected!'))
+  .catch((err) => console.error('❌ Connection error:', err.message));
 
 module.exports = pool;

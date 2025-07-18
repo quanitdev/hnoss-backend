@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-     "start": "node index.js"
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +24,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "mysql": "^2.18.1",
     "mysql2": "^3.14.1",
-    "nodemailer": "^7.0.4"
+    "nodemailer": "^7.0.4",
+    "pg": "^8.16.3"
   }
 }
