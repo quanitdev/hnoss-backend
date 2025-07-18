@@ -1,51 +1,33 @@
-const express = require("express");
-const cors = require("cors");
-const app = express();
 require("dotenv").config();
 
-// Middleware xử lý
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL,
-    credentials: true,
-  })
-);
-app.use(express.json());
+const admin = require("firebase-admin");
 
-// Import các route
-const productRoutes = require("./routes/product.route");
-const categoryRoutes = require("./routes/category.route");
-const authRoute = require("./routes/auth.route");
-const userRoute = require("./routes/user.route");
-const saleRoute = require("./routes/sale.route");
-const orderRoute = require("./routes/order.route");
-const voucherRouter = require("./routes/voucher.route");
-const uploadRoute = require("./routes/upload.route");
-const bannerRoute = require("./routes/banner.route");
-const dashboardRouter = require("./routes/dashboard.route");
-const contactRoute = require("./routes/contact.route");
-
-// Sử dụng các route
-app.use("/api/products", productRoutes);
-app.use("/api/categories", categoryRoutes);
-app.use("/api/auth", authRoute);
-app.use("/api/users", userRoute);
-app.use("/api/sale", saleRoute);
-app.use("/api/orders", orderRoute);
-app.use("/api/vouchers", voucherRouter);
-app.use("/api", uploadRoute);
-app.use("/api", bannerRoute);
-app.use("/api/admin", dashboardRouter);
-app.use("/api/contact", contactRoute);
-
-// Middleware xử lý lỗi chung (optional)
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: "Lỗi máy chủ nội bộ" });
+admin.initializeApp({
+  credential: admin.credential.cert({
+    type: "service_account",
+    project_id: process.env.FIREBASE_PROJECT_ID,
+    private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+    private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    client_id: process.env.FIREBASE_CLIENT_ID,
+    auth_uri: process.env.FIREBASE_AUTH_URI,
+    token_uri: process.env.FIREBASE_TOKEN_URI,
+    auth_provider_x509_cert_url:
+      process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+    client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
+  }),
 });
 
-// Khởi động server
-const PORT = process.env.PORT || 5000;
+module.exports = admin;
+
+const express = require("express");
+const app = express();
+
+const userRoute = require("./routes/user.route");
+
+app.use("/api/users", userRoute);
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
