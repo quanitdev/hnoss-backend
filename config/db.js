@@ -66,20 +66,70 @@
 // module.exports = pool;
 
 
-const { Pool } = require('pg');
-require('dotenv').config();
+// const { Pool } = require('pg');
+// require('dotenv').config();
+
+// const pool = new Pool({
+//   host: process.env.DB_HOST,
+//   database: process.env.DB_NAME,
+//   user: process.env.DB_USER,
+//   password: process.env.DB_PASS,
+//   port: process.env.DB_PORT,
+//   ssl: { rejectUnauthorized: false }, // cần khi dùng Render PostgreSQL
+// });
+
+// pool.connect()
+//   .then(() => console.log('✅ PostgreSQL connected!'))
+//   .catch((err) => console.error('❌ Connection error:', err.message));
+
+// module.exports = pool;
+
+
+
+// const { Pool } = require("pg");
+// require("dotenv").config();
+
+// const pool = new Pool({
+//   host: process.env.PG_HOST,
+//   port: process.env.PG_PORT,
+//   user: process.env.PG_USER,
+//   password: process.env.PG_PASSWORD,
+//   database: process.env.PG_DATABASE,
+// });
+
+// pool.connect()
+//   .then(() => console.log("✅ Connected to PostgreSQL"))
+//   .catch((err) => console.error("❌ PostgreSQL connection error:", err));
+
+// module.exports = pool;
+
+
+
+
+// db.js
+const { Pool } = require("pg");
+require("dotenv").config();
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  port: process.env.DB_PORT,
-  ssl: { rejectUnauthorized: false }, // cần khi dùng Render PostgreSQL
+  connectionString: process.env.DATABASE_URL,
+   host: process.env.PG_HOST,
+  port: process.env.PG_PORT,
+  user: process.env.PG_USER,
+  password: process.env.PG_PASSWORD,
+  database: process.env.PG_DATABASE,
+ssl: process.env.DATABASE_URL.includes("render.com")
+  ? { rejectUnauthorized: false }
+  : false,
 });
 
-pool.connect()
-  .then(() => console.log('✅ PostgreSQL connected!'))
-  .catch((err) => console.error('❌ Connection error:', err.message));
+// Thêm đoạn này để log ra khi kết nối thành công
+pool.on("connect", () => {
+  console.log("✅ PostgreSQL connected successfully");
+});
+
+// Log lỗi nếu kết nối thất bại
+pool.on("error", (err) => {
+  console.error("❌ PostgreSQL connection error:", err);
+});
 
 module.exports = pool;
