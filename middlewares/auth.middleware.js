@@ -107,9 +107,48 @@
 //   isAdmin,
 // };
 
-const jwt = require("jsonwebtoken");
+// const jwt = require("jsonwebtoken");
 
-const verifyToken = (req, res, next) => {
+// const verifyToken = (req, res, next) => {
+//   const authHeader = req.headers.authorization;
+//   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+//     return res
+//       .status(401)
+//       .json({ message: "❌ Không có token hoặc định dạng token không đúng." });
+//   }
+
+//   const token = authHeader.split(" ")[1];
+
+//   try {
+//     const decoded = jwt.verify(token, process.env.JWT_SECRET); // dùng biến môi trường
+//     req.user = decoded;
+//     next();
+//   } catch (err) {
+//     return res
+//       .status(403)
+//       .json({ message: "❌ Token không hợp lệ hoặc đã hết hạn." });
+//   }
+// };
+
+// const isAdmin = (req, res, next) => {
+//   if (req.user && req.user.role === "admin") {
+//     next();
+//   } else {
+//     res.status(403).json({ message: "Bạn không có quyền truy cập!" });
+//   }
+// };
+
+// module.exports = {
+//   verifyToken,
+//   isAdmin,
+// };
+
+
+const jwt = require("jsonwebtoken");
+const db = require("../config/db"); // pool PostgreSQL
+
+// Middleware xác thực JWT
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res
@@ -120,16 +159,25 @@ const verifyToken = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET); // dùng biến môi trường
-    req.user = decoded;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    // 🔍 Xác minh user có tồn tại trong DB
+    const result = await db.query("SELECT id, role FROM users WHERE id = $1", [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: "❌ Người dùng không tồn tại." });
+    }
+
+    req.user = result.rows[0]; // Lưu thông tin user vào req.user
     next();
   } catch (err) {
-    return res
-      .status(403)
-      .json({ message: "❌ Token không hợp lệ hoặc đã hết hạn." });
+    console.error(err);
+    return res.status(403).json({ message: "❌ Token không hợp lệ hoặc đã hết hạn." });
   }
 };
 
+// Middleware kiểm tra quyền admin
 const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === "admin") {
     next();

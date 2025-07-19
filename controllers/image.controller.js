@@ -1,12 +1,13 @@
 const cloudinary = require('../config/cloudinary');
-const db = require('../config/db');
+const pool = require('../config/db'); // config dùng pg.Pool
 
 exports.deleteImage = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Lấy image_url từ DB
-    const [[image]] = await db.query('SELECT image_url FROM images WHERE id = ?', [id]);
+    // Lấy image_url từ PostgreSQL
+    const result = await pool.query('SELECT image_url FROM images WHERE id = $1', [id]);
+    const image = result.rows[0];
     if (!image) return res.status(404).json({ error: 'Image not found' });
 
     // Lấy public_id từ image_url
@@ -17,8 +18,8 @@ exports.deleteImage = async (req, res) => {
     // Xoá trên Cloudinary
     await cloudinary.uploader.destroy(public_id);
 
-    // Xoá trong DB
-    await db.query('DELETE FROM images WHERE id = ?', [id]);
+    // Xoá bản ghi trong PostgreSQL
+    await pool.query('DELETE FROM images WHERE id = $1', [id]);
 
     res.json({ success: true, deletedId: id });
   } catch (err) {

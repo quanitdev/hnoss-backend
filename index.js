@@ -71,8 +71,8 @@ const userRoutes = require("./routes/user.route");
 const saleRoutes = require("./routes/sale.route");
 const orderRoutes = require("./routes/order.route");
 const voucherRoutes = require("./routes/voucher.route");
-const uploadRoutes = require("./routes/upload.route");
-const bannerRoutes = require("./routes/banner.route");
+// const uploadRoutes = require("./routes/upload.route");
+// const bannerRoutes = require("./routes/banner.route");
 const dashboardRoutes = require("./routes/dashboard.route");
 const contactRoutes = require("./routes/contact.route");
 
@@ -84,8 +84,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/sale", saleRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/vouchers", voucherRoutes);
-app.use("/api", uploadRoutes);
-app.use("/api", bannerRoutes);
+// app.use("/api", uploadRoutes);
+// app.use("/api/banners", bannerRoutes);
 app.use("/api/admin", dashboardRoutes);
 app.use("/api/contact", contactRoutes);
 

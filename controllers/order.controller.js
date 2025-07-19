@@ -1,8 +1,6 @@
-const db = require("../config/db");
+const pool = require("../config/db"); // PostgreSQL pool
 const sendMail = require("../utils/sendMail");
-const {
-  sendOrderSuccessMail,
-} = require("../utils/renderHnossOrderSuccessMail");
+const { sendOrderSuccessMail } = require("../utils/renderHnossOrderSuccessMail");
 
 // Tạo đơn hàng mới
 exports.createOrder = async (req, res) => {
@@ -22,57 +20,62 @@ exports.createOrder = async (req, res) => {
     note,
   } = req.body;
 
-  const conn = await db.getConnection();
+  const client = await pool.connect();
+
   try {
-    await conn.beginTransaction();
+    await client.query("BEGIN");
 
-    const [result] = await conn.query(
-      `INSERT INTO orders 
-      (user_id, total_quantity, total_price, discount_code, discount_amount, total_pay, shipping_fee, shipping_address, receiver_name, receiver_phone, receiver_email, note)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        user_id,
-        totalQuantity,
-        totalPrice,
-        discountCode,
-        discountAmount,
-        totalPay,
-        shippingFee,
-        shippingAddress,
-        receiverName,
-        receiverPhone,
-        receiverEmail,
-        note,
-      ]
-    );
+    const insertOrderQuery = `
+      INSERT INTO orders (
+        user_id, total_quantity, total_price, discount_code, discount_amount,
+        total_pay, shipping_fee, shipping_address, receiver_name, receiver_phone,
+        receiver_email, note
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id
+    `;
 
-    const orderId = result.insertId;
+    const insertOrderValues = [
+      user_id,
+      totalQuantity,
+      totalPrice,
+      discountCode,
+      discountAmount,
+      totalPay,
+      shippingFee,
+      shippingAddress,
+      receiverName,
+      receiverPhone,
+      receiverEmail,
+      note,
+    ];
+
+    const result = await client.query(insertOrderQuery, insertOrderValues);
+    const orderId = result.rows[0].id;
 
     for (const item of products) {
-      await conn.query(
+      await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, price)
-         VALUES (?, ?, ?, ?)`,
+         VALUES ($1, $2, $3, $4)`,
         [orderId, item.product_id, item.quantity, item.price]
       );
     }
 
-    await conn.commit();
+    await client.query("COMMIT");
     res.status(201).json({ message: "Đặt hàng thành công", orderId });
   } catch (err) {
-    await conn.rollback();
-    res.status(500).json({ message: "Lỗi đặt hàng", error: err });
+    await client.query("ROLLBACK");
+    res.status(500).json({ message: "Lỗi đặt hàng", error: err.message });
   } finally {
-    conn.release();
+    client.release();
   }
 };
 
 // Danh sách đơn hàng (admin)
 exports.getAllOrders = async (req, res) => {
   try {
-    const [orders] = await db.query(
+    const result = await pool.query(
       "SELECT * FROM orders ORDER BY created_at DESC"
     );
-    res.json(orders);
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ message: "Lỗi lấy danh sách đơn hàng" });
   }
@@ -82,78 +85,77 @@ exports.getAllOrders = async (req, res) => {
 exports.getOrdersByUser = async (req, res) => {
   const { userId } = req.params;
   try {
-    const [orders] = await db.query("SELECT * FROM orders WHERE user_id = ?", [
+    const result = await pool.query("SELECT * FROM orders WHERE user_id = $1", [
       userId,
     ]);
-    res.json(orders);
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ message: "Lỗi lấy đơn hàng người dùng" });
   }
 };
 
-// Lấy chi tiết đơn hàng (dùng cho xem hóa đơn)
+// Lấy chi tiết đơn hàng
 exports.getOrderById = async (req, res) => {
   const id = req.params.id || req.params.orderId;
-  console.log("API /order/:id nhận được id:", id);
+
   try {
-    const [[order]] = await db.query("SELECT * FROM orders WHERE id = ?", [id]);
+    const orderResult = await pool.query("SELECT * FROM orders WHERE id = $1", [
+      id,
+    ]);
+    const order = orderResult.rows[0];
     if (!order) {
       return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
     }
-    const [items] = await db.query(
+
+    const itemsResult = await pool.query(
       `SELECT oi.*, p.name, p.img
        FROM order_items oi
        JOIN products p ON oi.product_id = p.id
-       WHERE oi.order_id = ?`,
+       WHERE oi.order_id = $1`,
       [id]
     );
-    res.json({ order, items });
+
+    res.json({ order, items: itemsResult.rows });
   } catch (err) {
     res.status(500).json({ message: "Lỗi lấy chi tiết đơn hàng" });
   }
 };
 
-// Admin cập nhật trạng thái
+// Admin cập nhật trạng thái đơn hàng
 exports.updateOrderStatus = async (req, res) => {
   const orderId = req.params.id;
   const { status } = req.body;
-  console.log("==> Nhận yêu cầu cập nhật trạng thái:", orderId, status);
-  console.log("==> Trạng thái nhận được:", status);
+
   try {
-    await db.query("UPDATE orders SET status = ? WHERE id = ?", [
+    await pool.query("UPDATE orders SET status = $1 WHERE id = $2", [
       status,
       orderId,
     ]);
 
     if (status === "delivered") {
       try {
-        // Lấy thông tin đơn hàng
-        const [[order]] = await db.query("SELECT * FROM orders WHERE id = ?", [
+        const orderRes = await pool.query("SELECT * FROM orders WHERE id = $1", [
           orderId,
         ]);
+        const order = orderRes.rows[0];
         if (!order) {
-          console.error("Không tìm thấy đơn hàng để gửi mail!");
           return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
         }
-        // Lấy danh sách sản phẩm trong đơn
-        const [products] = await db.query(
+
+        const productsRes = await pool.query(
           `SELECT oi.*, p.name, p.img
            FROM order_items oi
            JOIN products p ON oi.product_id = p.id
-           WHERE oi.order_id = ?`,
+           WHERE oi.order_id = $1`,
           [orderId]
         );
-        console.log(
-          "Chuẩn bị gửi mail giao hàng thành công tới:",
-          order.receiver_email
-        );
+
         await sendOrderSuccessMail({
           order,
           user: { name: order.receiver_name },
-          products,
+          products: productsRes.rows,
           to: order.receiver_email,
         });
-        console.log("Đã gửi mail giao hàng thành công!");
       } catch (err) {
         console.error("Lỗi gửi mail giao hàng:", err);
       }

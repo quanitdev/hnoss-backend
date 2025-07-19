@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../config/db");
+const db = require("../config/db"); // PostgreSQL pool
 const { verifyToken, isAdmin } = require("../middlewares/auth.middleware");
 const { uploadProduct } = require("../middlewares/upload");
 
-// ✅ GET all
+// ✅ GET all products
 router.get("/", async (req, res) => {
   const query = `
     SELECT products.*, categories.name AS category_name 
@@ -12,8 +12,8 @@ router.get("/", async (req, res) => {
     LEFT JOIN categories ON products.category_id = categories.id
   `;
   try {
-    const [results] = await db.query(query);
-    res.json(results);
+    const results = await db.query(query);
+    res.json(results.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -26,14 +26,14 @@ router.get("/:id", async (req, res) => {
     SELECT products.*, categories.name AS category_name 
     FROM products 
     LEFT JOIN categories ON products.category_id = categories.id
-    WHERE products.id = ?
+    WHERE products.id = $1
   `;
   try {
-    const [results] = await db.query(query, [productId]);
-    if (results.length === 0) {
+    const results = await db.query(query, [productId]);
+    if (results.rows.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
     }
-    res.json(results[0]);
+    res.json(results.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -51,30 +51,29 @@ router.post("/", async (req, res) => {
     category_id,
     inventory,
   } = req.body;
+
   if (!id) {
-    return res
-      .status(400)
-      .json({
-        error: "Thiếu mã sản phẩm (id)",
-        detail: "Trường id là bắt buộc.",
-      });
+    return res.status(400).json({
+      error: "Thiếu mã sản phẩm (id)",
+      detail: "Trường id là bắt buộc.",
+    });
   }
-  // Kiểm tra trùng mã sản phẩm
-  const [exists] = await db.query("SELECT id FROM products WHERE id = ?", [id]);
-  if (exists.length > 0) {
-    return res
-      .status(400)
-      .json({
+
+  try {
+    const exists = await db.query("SELECT id FROM products WHERE id = $1", [id]);
+    if (exists.rows.length > 0) {
+      return res.status(400).json({
         error: "Mã sản phẩm đã tồn tại",
         detail: `Mã sản phẩm '${id}' đã tồn tại trong hệ thống.`,
       });
-  }
-  const query = `
- INSERT INTO products (id, name, price, description, sort_description, img, category_id, inventory)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  try {
-    const [result] = await db.query(query, [
+    }
+
+    const query = `
+      INSERT INTO products (id, name, price, description, sort_description, img, category_id, inventory)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `;
+
+    await db.query(query, [
       id,
       name,
       price,
@@ -84,18 +83,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       category_id,
       inventory,
     ]);
+
     res.json({
       message: "Thêm sản phẩm thành công",
       productId: id,
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Lỗi khi thêm sản phẩm", detail: err.message });
+    res.status(500).json({ error: "Lỗi khi thêm sản phẩm", detail: err.message });
   }
 });
 
-// Upload ảnh sản phẩm lên Cloudinary
+// ✅ Upload ảnh
 router.post("/upload-image", uploadProduct.single("image"), (req, res) => {
   try {
     const imageUrl = req.file.path;
@@ -117,12 +115,16 @@ router.put("/:id", async (req, res) => {
     category_id,
     inventory,
   } = req.body;
+
   const query = `
-    UPDATE products SET name = ?, price = ?, description = ?, sort_description = ?, img = ?, category_id = ?, inventory = ?
-    WHERE id = ?
+    UPDATE products
+    SET name = $1, price = $2, description = $3, sort_description = $4,
+        img = $5, category_id = $6, inventory = $7
+    WHERE id = $8
   `;
+
   try {
-    const [result] = await db.query(query, [
+    const result = await db.query(query, [
       name,
       price,
       description,
@@ -132,36 +134,31 @@ router.put("/:id", async (req, res) => {
       inventory,
       productId,
     ]);
-    if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ message: "Không tìm thấy sản phẩm để cập nhật" });
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Không tìm thấy sản phẩm để cập nhật" });
     }
+
     res.json({ message: "Cập nhật sản phẩm thành công" });
   } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Lỗi khi cập nhật sản phẩm", detail: err.message });
+    res.status(500).json({ error: "Lỗi khi cập nhật sản phẩm", detail: err.message });
   }
 });
 
 // ✅ DELETE
 router.delete("/:id", async (req, res) => {
   const productId = req.params.id;
+
   try {
-    const [result] = await db.query(`DELETE FROM products WHERE id = ?`, [
-      productId,
-    ]);
-    if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ message: "Không tìm thấy sản phẩm để xoá" });
+    const result = await db.query("DELETE FROM products WHERE id = $1", [productId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Không tìm thấy sản phẩm để xoá" });
     }
+
     res.json({ message: "Xoá sản phẩm thành công" });
   } catch (err) {
-    res
-      .status(500)
-      .json({ error: "Lỗi khi xoá sản phẩm", detail: err.message });
+    res.status(500).json({ error: "Lỗi khi xoá sản phẩm", detail: err.message });
   }
 });
 
